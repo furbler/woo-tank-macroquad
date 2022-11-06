@@ -1,15 +1,15 @@
 use macroquad::prelude::*;
-/// 角度はすべて-y軸方向を0、時計回りを正とする
 struct Turret {
-    rot: f32,           // 車体を基準とした砲塔の角度[deg]
+    angle: f32,         // 車体を基準とした砲塔の角度[deg]
     angular_speed: f32, // 砲塔の旋回速度[deg]
+    aim_mouse: bool,    // 真なら砲塔旋回をマウスカーソル追従、偽ならキー操作で行う
     texture: Texture2D,
     image_scale: f32, // 画像描画時の拡大率
 }
 
 struct Body {
     pos: Vec2,          // 車体中心位置
-    rot: f32,           // 前方向を表す角度[deg]
+    angle: f32,         // 前方向を表す角度[deg]
     speed: i32,         // 1フレームあたりの移動距離
     angular_speed: f32, // 1フレームあたりの旋回速度
     texture: Texture2D,
@@ -21,14 +21,15 @@ struct Body {
 async fn main() {
     let mut player = Body {
         pos: Vec2::new(screen_width() / 2., screen_height() / 2.),
-        rot: 20.,
+        angle: 20.,
         speed: 5,
         angular_speed: 5.,
         texture: load_texture("image/tank_blue.png").await.unwrap(),
         image_scale: 1.8,
         turret: Turret {
-            rot: 0.,
+            angle: 0.,
             angular_speed: 5.,
+            aim_mouse: true,
             image_scale: 0.6,
             texture: load_texture("image/turret_blue.png").await.unwrap(),
         },
@@ -37,41 +38,63 @@ async fn main() {
     loop {
         // 車体右旋回
         if is_key_down(KeyCode::D) {
-            player.rot += player.angular_speed;
+            player.angle += player.angular_speed;
         }
 
         // 車体左旋回
         if is_key_down(KeyCode::A) {
-            player.rot -= player.angular_speed;
+            player.angle -= player.angular_speed;
         }
         // 1周したら戻す
-        player.rot %= 360.;
+        player.angle %= 360.;
 
-        // 砲塔右旋回
-        if is_key_down(KeyCode::Right) {
-            player.turret.rot += player.turret.angular_speed;
+        if is_key_pressed(KeyCode::C) {
+            // マウス追従/キー操作モード切り替え
+            player.turret.aim_mouse = !player.turret.aim_mouse;
         }
 
-        // 砲塔左旋回
-        if is_key_down(KeyCode::Left) {
-            player.turret.rot -= player.turret.angular_speed;
+        let mouse_pos: Vec2 = mouse_position().into();
+        if player.turret.aim_mouse {
+            // 砲の方向ベクトル
+            let turret_vec = angle2vec2(player.turret.angle.to_radians());
+            // プレイヤーからマウスカーソルへ向かうベクトル
+            let player2mouse_vec =
+                Vec2::new(mouse_pos.x - player.pos.x, mouse_pos.y - player.pos.y);
+            // 外積で砲の指向方向を判定
+            if cross_product(turret_vec, player2mouse_vec) > 0. {
+                // 砲塔右旋回
+                player.turret.angle += player.turret.angular_speed;
+            } else {
+                // 砲塔左旋回
+                player.turret.angle -= player.turret.angular_speed;
+            }
+        } else {
+            // 砲塔右旋回
+            if is_key_down(KeyCode::Right) {
+                player.turret.angle += player.turret.angular_speed;
+            }
+
+            // 砲塔左旋回
+            if is_key_down(KeyCode::Left) {
+                player.turret.angle -= player.turret.angular_speed;
+            }
         }
         // 1周したら戻す
-        player.turret.rot %= 360.;
+        player.turret.angle %= 360.;
 
-        let body_rot_rad = player.rot.to_radians();
+        let body_angle_rad = player.angle.to_radians();
         // 速度(移動量)
         let mut vel = Vec2::new(0., 0.);
 
         // 前進
         if is_key_down(KeyCode::W) {
             // y軸に反転
-            vel += Vec2::new(body_rot_rad.sin(), -body_rot_rad.cos()) * player.speed as f32;
+            vel += angle2vec2(body_angle_rad) * player.speed as f32;
         }
         // 後進
         if is_key_down(KeyCode::S) {
             // y軸に反転
-            vel -= Vec2::new(body_rot_rad.sin(), -body_rot_rad.cos()) * player.speed as f32;
+            vel -= angle2vec2(body_angle_rad) * player.speed as f32;
         }
         player.pos += vel;
 
@@ -87,7 +110,7 @@ async fn main() {
                     player.texture.width() * player.image_scale,
                     player.texture.height() * player.image_scale,
                 )),
-                rotation: body_rot_rad,
+                rotation: body_angle_rad,
                 ..Default::default()
             },
         );
@@ -102,11 +125,25 @@ async fn main() {
                     player.turret.texture.width() * player.turret.image_scale,
                     player.turret.texture.height() * player.turret.image_scale,
                 )),
-                rotation: body_rot_rad + player.turret.rot.to_radians(),
+                rotation: body_angle_rad + player.turret.angle.to_radians(),
                 ..Default::default()
             },
         );
+        // マウス追従モードならばカーソル位置に丸を表示
+        if player.turret.aim_mouse {
+            draw_circle_lines(mouse_pos.x, mouse_pos.y, 10., 3., BLACK);
+        }
 
         next_frame().await
     }
+}
+
+// 角度は-y軸方向が0、時計回りが正
+fn angle2vec2(angle_rad: f32) -> Vec2 {
+    Vec2::new(angle_rad.sin(), -angle_rad.cos())
+}
+
+// 外積 a x b
+fn cross_product(a: Vec2, b: Vec2) -> f32 {
+    a.x * b.y - a.y * b.x
 }
