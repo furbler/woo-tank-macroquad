@@ -56,7 +56,7 @@ async fn main() {
         let mouse_pos: Vec2 = mouse_position().into();
         if player.turret.aim_mouse {
             // 砲の方向ベクトル
-            let turret_vec = angle2vec2(player.turret.angle.to_radians());
+            let turret_vec = angle2vec2((player.turret.angle + player.angle).to_radians());
             // プレイヤーからマウスカーソルへ向かうベクトル
             let player2mouse_vec =
                 Vec2::new(mouse_pos.x - player.pos.x, mouse_pos.y - player.pos.y);
