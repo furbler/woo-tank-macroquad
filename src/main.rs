@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+
 struct Turret {
     angle: f32,         // 車体を基準とした砲塔の角度[deg]
     angular_speed: f32, // 砲塔の旋回速度[deg]
@@ -55,25 +56,27 @@ async fn main() {
 
         let mouse_pos: Vec2 = mouse_position().into();
         if player.turret.aim_mouse {
-            // 砲の方向ベクトル
             let turret_vec = angle2vec2((player.turret.angle + player.angle).to_radians());
             // プレイヤーからマウスカーソルへ向かうベクトル
             let player2mouse_vec =
                 Vec2::new(mouse_pos.x - player.pos.x, mouse_pos.y - player.pos.y);
-            // 外積で砲の指向方向を判定
-            if cross_product(turret_vec, player2mouse_vec) > 0. {
-                // 砲塔右旋回
-                player.turret.angle += player.turret.angular_speed;
+
+            // 砲の方向とマウスカーソルを指す方向とのなす角
+            let angle_diff_deg = turret_vec.angle_between(player2mouse_vec).to_degrees();
+            if angle_diff_deg.abs() > 10. {
+                // 角度差が一定以上であれば、定速で旋回
+                player.turret.angle += player.turret.angular_speed * angle_diff_deg.signum()
             } else {
-                // 砲塔左旋回
-                player.turret.angle -= player.turret.angular_speed;
+                // 角度差が一定以下の場合、ease-out補間で旋回速度を求める
+                // -1 <= t <= 1
+                let t = angle_diff_deg / 10.;
+                player.turret.angle += t * (2. - t);
             }
         } else {
             // 砲塔右旋回
             if is_key_down(KeyCode::Right) {
                 player.turret.angle += player.turret.angular_speed;
             }
-
             // 砲塔左旋回
             if is_key_down(KeyCode::Left) {
                 player.turret.angle -= player.turret.angular_speed;
@@ -141,9 +144,4 @@ async fn main() {
 // 角度は-y軸方向が0、時計回りが正
 fn angle2vec2(angle_rad: f32) -> Vec2 {
     Vec2::new(angle_rad.sin(), -angle_rad.cos())
-}
-
-// 外積 a x b
-fn cross_product(a: Vec2, b: Vec2) -> f32 {
-    a.x * b.y - a.y * b.x
 }
