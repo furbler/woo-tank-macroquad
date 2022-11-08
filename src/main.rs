@@ -99,8 +99,21 @@ async fn main() {
             // y軸に反転
             vel -= angle2vec2(body_angle_rad) * player.speed as f32;
         }
-        player.pos += vel;
 
+        let moved_pos = player.pos + vel;
+        // 左右端より外側に出ていなければ動かす
+        if 0. < moved_pos.x - player.texture.width() / 2.
+            && moved_pos.x + player.texture.width() / 2. < screen_width()
+        {
+            player.pos.x = moved_pos.x;
+        }
+        // 上下端より外側に出ていなければ
+        if 0. < moved_pos.y - player.texture.height() / 2.
+            && moved_pos.y + player.texture.height() / 2. < screen_height()
+        {
+            player.pos.y = moved_pos.y;
+        }
+        // 背景色描画
         clear_background(LIGHTGRAY);
         // 車体描画
         draw_texture_ex(
