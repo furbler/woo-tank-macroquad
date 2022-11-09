@@ -1,40 +1,61 @@
 use macroquad::prelude::*;
 
+// 砲塔
 struct Turret {
     angle: f32,         // 車体を基準とした砲塔の角度[deg]
     angular_speed: f32, // 砲塔の旋回速度[deg]
     aim_mouse: bool,    // 真なら砲塔旋回をマウスカーソル追従、偽ならキー操作で行う
     texture: Texture2D,
-    image_scale: f32, // 画像描画時の拡大率
+    width: f32,  // 幅
+    height: f32, // 長さ
 }
-
+// 車体
 struct Body {
     pos: Vec2,          // 車体中心位置
     angle: f32,         // 前方向を表す角度[deg]
-    speed: i32,         // 1フレームあたりの移動距離
+    speed: i32,         // 1フレームあたりの移動距離(速さ)
     angular_speed: f32, // 1フレームあたりの旋回速度
     texture: Texture2D,
-    image_scale: f32, // 画像描画時の拡大率
-    turret: Turret,   // 砲塔
+    width: f32,     // 幅
+    height: f32,    // 長さ
+    turret: Turret, // 砲塔
+}
+
+impl Body {
+    fn new(body_texture: Texture2D, turret_texture: Texture2D) -> Self {
+        // 元画像のサイズに拡大率を掛けて描画したいサイズを求める
+        let body_width = body_texture.width() * 1.8;
+        let body_height = body_texture.height() * 1.8;
+
+        let turret_width = turret_texture.width() * 0.6;
+        let turret_height = turret_texture.height() * 0.6;
+
+        Body {
+            pos: Vec2::new(screen_width() / 2., screen_height() / 2.),
+            angle: 20.,
+            speed: 5,
+            angular_speed: 5.,
+            texture: body_texture,
+            width: body_width,
+            height: body_height,
+            turret: Turret {
+                angle: 0.,
+                angular_speed: 5.,
+                aim_mouse: true,
+                texture: turret_texture,
+                width: turret_width,
+                height: turret_height,
+            },
+        }
+    }
 }
 
 #[macroquad::main("woo-tank-macroquad")]
 async fn main() {
-    let mut player = Body {
-        pos: Vec2::new(screen_width() / 2., screen_height() / 2.),
-        angle: 20.,
-        speed: 5,
-        angular_speed: 5.,
-        texture: load_texture("image/tank_blue.png").await.unwrap(),
-        image_scale: 1.8,
-        turret: Turret {
-            angle: 0.,
-            angular_speed: 5.,
-            aim_mouse: true,
-            image_scale: 0.6,
-            texture: load_texture("image/turret_blue.png").await.unwrap(),
-        },
-    };
+    let mut player = Body::new(
+        load_texture("image/tank_blue.png").await.unwrap(),
+        load_texture("image/turret_blue.png").await.unwrap(),
+    );
 
     loop {
         // 車体右旋回
@@ -102,30 +123,27 @@ async fn main() {
 
         let moved_pos = player.pos + vel;
         // 左右端より外側に出ていなければ動かす
-        if 0. < moved_pos.x - player.texture.width() / 2.
-            && moved_pos.x + player.texture.width() / 2. < screen_width()
+        if 0. < moved_pos.x - player.width / 2. && moved_pos.x + player.width / 2. < screen_width()
         {
             player.pos.x = moved_pos.x;
         }
         // 上下端より外側に出ていなければ
-        if 0. < moved_pos.y - player.texture.height() / 2.
-            && moved_pos.y + player.texture.height() / 2. < screen_height()
+        if 0. < moved_pos.y - player.height / 2.
+            && moved_pos.y + player.height / 2. < screen_height()
         {
             player.pos.y = moved_pos.y;
         }
+
         // 背景色描画
         clear_background(LIGHTGRAY);
         // 車体描画
         draw_texture_ex(
             player.texture,
-            player.pos.x - player.texture.width() / 2. * player.image_scale,
-            player.pos.y - player.texture.height() / 2. * player.image_scale,
+            player.pos.x - player.width / 2.,
+            player.pos.y - player.height / 2.,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(Vec2::new(
-                    player.texture.width() * player.image_scale,
-                    player.texture.height() * player.image_scale,
-                )),
+                dest_size: Some(Vec2::new(player.width, player.height)),
                 rotation: body_angle_rad,
                 ..Default::default()
             },
@@ -133,14 +151,11 @@ async fn main() {
         // 砲塔描画
         draw_texture_ex(
             player.turret.texture,
-            player.pos.x - player.turret.texture.width() / 2. * player.turret.image_scale,
-            player.pos.y - player.turret.texture.height() / 2. * player.turret.image_scale,
+            player.pos.x - player.turret.width / 2.,
+            player.pos.y - player.turret.height / 2.,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(Vec2::new(
-                    player.turret.texture.width() * player.turret.image_scale,
-                    player.turret.texture.height() * player.turret.image_scale,
-                )),
+                dest_size: Some(Vec2::new(player.turret.width, player.turret.height)),
                 rotation: body_angle_rad + player.turret.angle.to_radians(),
                 ..Default::default()
             },
