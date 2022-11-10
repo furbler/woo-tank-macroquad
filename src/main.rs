@@ -21,6 +21,14 @@ struct Body {
     turret: Turret, // 砲塔
 }
 
+// 弾
+struct Bullet {
+    pos: Vec2,       // 弾底の位置
+    direction: Vec2, // 向きを表す単位ベクトル
+    length: f32,     // 弾の長さ
+    thickness: f32,  // 弾の太さ
+}
+
 impl Body {
     fn new(body_texture: Texture2D, turret_texture: Texture2D) -> Self {
         // 元画像のサイズに拡大率を掛けて描画したいサイズを求める
@@ -57,6 +65,8 @@ async fn main() {
         load_texture("image/turret_blue.png").await.unwrap(),
     );
 
+    let mut bullets: Vec<Bullet> = Vec::new();
+
     loop {
         // 車体右旋回
         if is_key_down(KeyCode::D) {
@@ -77,7 +87,7 @@ async fn main() {
 
         let mouse_pos: Vec2 = mouse_position().into();
         if player.turret.aim_mouse {
-            let turret_vec = angle2vec2((player.turret.angle + player.angle).to_radians());
+            let turret_vec = angle_rad2vec((player.turret.angle + player.angle).to_radians());
             // プレイヤーからマウスカーソルへ向かうベクトル
             let player2mouse_vec =
                 Vec2::new(mouse_pos.x - player.pos.x, mouse_pos.y - player.pos.y);
@@ -107,18 +117,19 @@ async fn main() {
         player.turret.angle %= 360.;
 
         let body_angle_rad = player.angle.to_radians();
+        let turret_angle_rad = (player.angle + player.turret.angle).to_radians();
         // 速度(移動量)
         let mut vel = Vec2::new(0., 0.);
 
         // 前進
         if is_key_down(KeyCode::W) {
             // y軸に反転
-            vel += angle2vec2(body_angle_rad) * player.speed as f32;
+            vel += angle_rad2vec(body_angle_rad) * player.speed as f32;
         }
         // 後進
         if is_key_down(KeyCode::S) {
             // y軸に反転
-            vel -= angle2vec2(body_angle_rad) * player.speed as f32;
+            vel -= angle_rad2vec(body_angle_rad) * player.speed as f32;
         }
 
         let moved_pos = player.pos + vel;
@@ -133,6 +144,28 @@ async fn main() {
         {
             player.pos.y = moved_pos.y;
         }
+        // 弾の移動
+        for bullet in bullets.iter_mut() {
+            bullet.pos += bullet.direction * 10.;
+        }
+
+        // マウスカーソル追従モードでマウスクリック、またはキー入力モードで発射ボタン(スペースか上矢印キー)が押された場合
+        // 押しっぱなしでは連射しない
+        if (player.turret.aim_mouse && is_mouse_button_pressed(MouseButton::Left))
+            || (!player.turret.aim_mouse
+                && (is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Up)))
+        {
+            bullets.push(Bullet {
+                pos: player.pos + angle_rad2vec(turret_angle_rad) * player.height * 0.7,
+                direction: angle_rad2vec(turret_angle_rad),
+                length: 20.,
+                thickness: 3.,
+            })
+        }
+        // 画面から出た弾は消す
+        bullets.retain(|b| {
+            0. < b.pos.x && b.pos.x < screen_width() && 0. < b.pos.y && b.pos.y < screen_height()
+        });
 
         // 背景色描画
         clear_background(LIGHTGRAY);
@@ -156,10 +189,22 @@ async fn main() {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(Vec2::new(player.turret.width, player.turret.height)),
-                rotation: body_angle_rad + player.turret.angle.to_radians(),
+                rotation: turret_angle_rad,
                 ..Default::default()
             },
         );
+        // 弾描画
+        for b in &bullets {
+            draw_line(
+                b.pos.x,
+                b.pos.y,
+                b.pos.x + b.direction.x * b.length,
+                b.pos.y + b.direction.y * b.length,
+                b.thickness,
+                BLACK,
+            );
+        }
+
         // マウス追従モードならばカーソル位置に丸を表示
         if player.turret.aim_mouse {
             draw_circle_lines(mouse_pos.x, mouse_pos.y, 10., 3., BLACK);
@@ -169,7 +214,8 @@ async fn main() {
     }
 }
 
-// 角度は-y軸方向が0、時計回りが正
-fn angle2vec2(angle_rad: f32) -> Vec2 {
+// 引数は-y軸方向が0、時計回りが正の角度
+// 返り値は本来のx-y座標系上の単位ベクトル
+fn angle_rad2vec(angle_rad: f32) -> Vec2 {
     Vec2::new(angle_rad.sin(), -angle_rad.cos())
 }
