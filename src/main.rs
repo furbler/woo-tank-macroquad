@@ -6,8 +6,9 @@ struct Turret {
     angular_speed: f32, // 砲塔の旋回速度[deg]
     aim_mouse: bool,    // 真なら砲塔旋回をマウスカーソル追従、偽ならキー操作で行う
     texture: Texture2D,
-    width: f32,  // 幅
-    height: f32, // 長さ
+    width: f32,           // 幅
+    height: f32,          // 長さ
+    shot_lapse_time: f64, // 最後にした射撃からの経過時間[s]
 }
 // 車体
 struct Body {
@@ -53,6 +54,7 @@ impl Body {
                 texture: turret_texture,
                 width: turret_width,
                 height: turret_height,
+                shot_lapse_time: 0.,
             },
         }
     }
@@ -149,18 +151,25 @@ async fn main() {
             bullet.pos += bullet.direction * 10.;
         }
 
+        let current_time = get_time();
+
         // マウスカーソル追従モードでマウスクリック、またはキー入力モードで発射ボタン(スペースか上矢印キー)が押された場合
-        // 押しっぱなしでは連射しない
-        if (player.turret.aim_mouse && is_mouse_button_pressed(MouseButton::Left))
+        if (player.turret.aim_mouse && is_mouse_button_down(MouseButton::Left))
             || (!player.turret.aim_mouse
-                && (is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Up)))
+                && (is_key_down(KeyCode::Space) || is_key_down(KeyCode::Up)))
         {
-            bullets.push(Bullet {
-                pos: player.pos + angle_rad2vec(turret_angle_rad) * player.height * 0.7,
-                direction: angle_rad2vec(turret_angle_rad),
-                length: 20.,
-                thickness: 3.,
-            })
+            // 最後の射撃から指定の時間以上経過していた場合
+            if current_time - player.turret.shot_lapse_time > 0.3 {
+                // 射撃
+                bullets.push(Bullet {
+                    pos: player.pos + angle_rad2vec(turret_angle_rad) * player.height * 0.6,
+                    direction: angle_rad2vec(turret_angle_rad),
+                    length: 10.,
+                    thickness: 3.,
+                });
+                // 射撃時刻更新
+                player.turret.shot_lapse_time = current_time;
+            }
         }
         // 画面から出た弾は消す
         bullets.retain(|b| {
