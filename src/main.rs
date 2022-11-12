@@ -8,7 +8,7 @@ struct Turret {
     texture: Texture2D,
     width: f32,           // 幅
     height: f32,          // 長さ
-    shot_lapse_time: f64, // 最後にした射撃からの経過時間[s]
+    shot_lapse_time: f64, // 最後に射撃してからの経過時間[s]
 }
 // 車体
 struct Body {
@@ -149,15 +149,23 @@ async fn main() {
         // 弾の移動
         for bullet in bullets.iter_mut() {
             bullet.pos += bullet.direction * 10.;
+            // 画面端に到達していたら反射する
+            // 左右端
+            if bullet.pos.x < 0. || screen_width() < bullet.pos.x {
+                bullet.direction.x *= -1.;
+            }
+            // 上下端
+            if bullet.pos.y < 0. || screen_height() < bullet.pos.y {
+                bullet.direction.y *= -1.;
+            }
         }
-
-        let current_time = get_time();
 
         // マウスカーソル追従モードでマウスクリック、またはキー入力モードで発射ボタン(スペースか上矢印キー)が押された場合
         if (player.turret.aim_mouse && is_mouse_button_down(MouseButton::Left))
             || (!player.turret.aim_mouse
                 && (is_key_down(KeyCode::Space) || is_key_down(KeyCode::Up)))
         {
+            let current_time = get_time();
             // 最後の射撃から指定の時間以上経過していた場合
             if current_time - player.turret.shot_lapse_time > 0.3 {
                 // 射撃
@@ -171,10 +179,6 @@ async fn main() {
                 player.turret.shot_lapse_time = current_time;
             }
         }
-        // 画面から出た弾は消す
-        bullets.retain(|b| {
-            0. < b.pos.x && b.pos.x < screen_width() && 0. < b.pos.y && b.pos.y < screen_height()
-        });
 
         // 背景色描画
         clear_background(LIGHTGRAY);
